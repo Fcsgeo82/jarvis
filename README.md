@@ -1,36 +1,71 @@
-# Desktop clap → simple log
+# Desktop clap → Jarvis-style welcome
 
-Small Python script that listens to your default microphone and writes a log line when it hears a sharp loud sound (e.g. a clap). Use it as a starting point to hook in other actions later.
+Python script that listens to your default microphone and runs a **double-clap** welcome flow (Spotify, Chrome windows, ElevenLabs voice, Cursor). See constants at the top of `jarvis.py` for behavior and tuning.
 
 ## Setup
 
+From this project directory:
+
 ```bash
-cd clap-trigger
 python -m pip install -r requirements.txt
+```
+
+## Environment variables
+
+The script loads a **`.env` file** in the same folder as `jarvis.py` (via `python-dotenv`). You can also set variables in the shell.
+
+### Required (ElevenLabs welcome line)
+
+| Variable | Purpose |
+| -------- | ------- |
+| `ELEVENLABS_API_KEY` | API key from [ElevenLabs](https://elevenlabs.io). |
+| `ELEVENLABS_VOICE_ID` | Voice ID from the ElevenLabs app (My Voices / library). |
+
+Without these, the welcome speech is skipped (other actions may still run).
+
+### Optional
+
+| Variable | Purpose |
+| -------- | ------- |
+| `ELEVENLABS_MODEL_ID` | TTS model (default in code: `eleven_multilingual_v2`). |
+| `ELEVENLABS_OUTPUT_FORMAT` | e.g. `pcm_24000` (must match playback expectations). |
+| `ELEVENLABS_PCM_SAMPLE_RATE` | Override PCM sample rate if it differs from the format name. |
+| `JARVIS_WELCOME_CACHE_DIR` | Custom folder for cached welcome WAV (default: `.cache/jarvis_welcome/` under the project). |
+| `CLAUDE_CODE_URL` | URL opened for Claude in Chrome (default: new chat). |
+| `BINANCE_BTC_URL` | URL opened for Binance in Chrome (default: BTC spot trade). |
+| `CHROME_NEW_WINDOW_WAIT_S` | Seconds to wait for a new Chrome window on Windows (default `25`). |
+| `CHROME_WINDOW_WIDTH` / `CHROME_WINDOW_HEIGHT` | Windowed Chrome size when not fullscreen. |
+
+Example `.env`:
+
+```env
+ELEVENLABS_API_KEY=your_key_here
+ELEVENLABS_VOICE_ID=your_voice_id_here
 ```
 
 ## Run
 
 ```bash
-python clap_listen.py
+python jarvis.py
 ```
 
 Allow the microphone if Windows prompts you. Stop with **Ctrl+C**.
 
 ## Tuning
 
-Edit the constants at the top of `clap_listen.py`:
+Edit the constants at the top of `jarvis.py`:
 
-| Constant | Effect |
-|----------|--------|
+| Constant      | Effect                                                            |
+| ------------- | ----------------------------------------------------------------- |
 | `SPIKE_RATIO` | Increase if you get false triggers; decrease if claps are missed. |
-| `COOLDOWN_S` | Minimum time between two logged claps. |
-| `BLOCK_MS` | Larger = slightly less CPU, a bit less precise timing. |
-| `MIN_RMS` | Floor on how loud a block must be (helps in very quiet rooms). |
-| `SAMPLE_RATE` | Try `48000` if your device does not like `44100`. |
+| `COOLDOWN_S`  | Minimum time between two logged claps.                            |
+| `BLOCK_MS`    | Larger = slightly less CPU, a bit less precise timing.            |
+| `MIN_RMS`     | Floor on how loud a block must be (helps in very quiet rooms).  |
+| `SAMPLE_RATE` | Try `48000` if your device does not like `44100`.                 |
 
 ## Troubleshooting
 
 - **PortAudio / audio errors:** Update audio drivers or try another `SAMPLE_RATE`.
 - **No reaction to claps:** Lower `SPIKE_RATIO` slightly or speak/clap closer to the mic.
 - **Spam logs:** Raise `SPIKE_RATIO` or `COOLDOWN_S`.
+- **No welcome speech:** Set `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` in `.env` and restart the terminal so variables load.
