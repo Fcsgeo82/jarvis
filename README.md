@@ -1,13 +1,15 @@
 # 🤖 Jarvis — Desktop Voice Assistant Agent
 
-Python assistant that listens to your microphone and reacts to **clap patterns** and a **wake word**. Supports an offline STT pipeline, DeepSeek LLM with tool calling, ElevenLabs TTS, and a system tray icon.
+Python assistant that listens to your microphone and reacts to **clap patterns**
+and a **wake word**. Supports an offline STT pipeline, DeepSeek LLM with tool
+calling, ElevenLabs TTS, and a system tray icon.
 
 ---
 
 ## Features
 
 | Feature | Detail |
-|---|---|
+| --- | --- |
 | 👏👏 **Double clap** | Boot sequence: Spotify → Claude (Chrome) → Binance (Chrome) → Antigravity IDE → Dynamic LLM welcome |
 | 👏👏👏 **Triple clap** | Voice agent: record → Whisper STT → DeepSeek + tools → ElevenLabs speaks |
 | 🎙️ **Wake word** | "Hey Jarvis" (offline, no API key) triggers the voice agent |
@@ -43,7 +45,8 @@ copy .env.example .env
 # Then edit .env with your API keys
 ```
 
-> **Note:** On the first run with wake word enabled, `openwakeword` downloads the `hey_jarvis` ONNX model (~5 MB) automatically.
+> **Note:** On the first run with wake word enabled, `openwakeword` downloads
+> the `hey_jarvis` ONNX model (~5 MB) automatically.
 
 ---
 
@@ -54,7 +57,7 @@ Copy `.env.example` to `.env` and fill in your values.
 ### Required for TTS
 
 | Variable | Purpose |
-|---|---|
+| --- | --- |
 | `ELEVENLABS_API_KEY` | API key from [elevenlabs.io](https://elevenlabs.io) |
 | `ELEVENLABS_VOICE_ID` | Voice ID from the ElevenLabs app (My Voices) |
 
@@ -63,15 +66,16 @@ Without these, TTS is silently skipped (all other features still work).
 ### Required for Voice Agent & Dynamic Welcome
 
 | Variable | Purpose |
-|---|---|
+| --- | --- |
 | `DEEPSEEK_API_KEY` | Free API key from [platform.deepseek.com](https://platform.deepseek.com) |
 
-Without this, the voice agent returns a static error message and the welcome uses the fallback phrase.
+Without this, the voice agent returns a static error message and the welcome
+uses the fallback phrase.
 
 ### Optional
 
 | Variable | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `ELEVENLABS_MODEL_ID` | `eleven_multilingual_v2` | TTS model ID |
 | `ELEVENLABS_OUTPUT_FORMAT` | `pcm_24000` | Audio format |
 | `ELEVENLABS_PCM_SAMPLE_RATE` | Auto from format | Override PCM sample rate |
@@ -105,11 +109,12 @@ DEEPSEEK_API_KEY=sk-...
 python jarvis.py
 ```
 
-Allow microphone access if Windows prompts. Stop with **Ctrl+C** or via the tray icon menu → **Sair**.
+Allow microphone access if Windows prompts. Stop with **Ctrl+C** or via the
+tray icon menu → **Sair**.
 
 Expected startup output:
 
-```
+```text
 Ouvindo — dupla: 0.05–0.35s | tripla: <1.00s | rate=44100 | block=40ms | spike=7.0 | cooldown=0.45s
 Palma dupla  → boot (Spotify + Chrome + Antigravity IDE + Welcome DeepSeek)
 Palma tripla → agente de voz DeepSeek (deepseek-chat) com ferramentas
@@ -122,7 +127,7 @@ Tray icon ativo na bandeja do sistema.
 
 ## Voice Agent — How It Works
 
-```
+```text
 You clap three times (or say "Hey Jarvis")
          ↓
 Jarvis records 5 seconds of audio
@@ -148,7 +153,7 @@ ElevenLabs speaks the response
 Edit constants at the top of `jarvis.py`:
 
 | Constant | Effect |
-|---|---|
+| --- | --- |
 | `SPIKE_RATIO` | Increase to reduce false triggers; decrease if claps are missed |
 | `COOLDOWN_S` | Minimum gap between two detected claps |
 | `MIN_DOUBLE_GAP_S` / `MAX_DOUBLE_GAP_S` | Valid gap range for double-clap detection |
@@ -162,7 +167,7 @@ Edit constants at the top of `jarvis.py`:
 ## Troubleshooting
 
 | Problem | Fix |
-|---|---|
+| --- | --- |
 | **PortAudio / audio errors** | Update audio drivers or try `SAMPLE_RATE=48000` |
 | **No reaction to claps** | Lower `SPIKE_RATIO` slightly or clap closer to the mic |
 | **Too many false triggers** | Raise `SPIKE_RATIO` or `COOLDOWN_S` |
@@ -176,7 +181,7 @@ Edit constants at the top of `jarvis.py`:
 
 ## Project Structure
 
-```
+```text
 jarvis/
 ├── jarvis.py            # Main script
 ├── requirements.txt     # Python dependencies
@@ -192,7 +197,7 @@ jarvis/
 
 ## Dependencies
 
-```
+```text
 elevenlabs          — TTS via ElevenLabs API
 openai              — DeepSeek API client (OpenAI-compatible)
 faster-whisper      — Offline speech-to-text (Whisper)
