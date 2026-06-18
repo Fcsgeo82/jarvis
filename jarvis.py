@@ -230,6 +230,97 @@ logging.basicConfig(
 log = logging.getLogger("jarvis")
 
 # ---------------------------------------------------------------------------
+# Configuração Inteligente de Dispositivos de Áudio
+# ---------------------------------------------------------------------------
+def setup_audio_devices() -> None:
+    try:
+        devices = sd.query_devices()
+        hostapis = sd.query_hostapis()
+    except Exception as e:
+        log.warning("Não foi possível interrogar dispositivos de áudio: %s", e)
+        return
+
+    # 1. Tentar ler do .env
+    input_env = os.environ.get("JARVIS_INPUT_DEVICE")
+    output_env = os.environ.get("JARVIS_OUTPUT_DEVICE")
+    
+    input_id = int(input_env) if (input_env and input_env.strip().isdigit()) else None
+    output_id = int(output_env) if (output_env and output_env.strip().isdigit()) else None
+
+    # Se não configurado pelo .env, resolvemos automaticamente
+    default_input, default_output = sd.default.device
+    
+    # Função para verificar se a API host é problemática (ex: WDM-KS que não aceita blocking reads)
+    def is_problematic_api(dev: dict) -> bool:
+        api_idx = dev.get("hostapi", -1)
+        if 0 <= api_idx < len(hostapis):
+            api_name = hostapis[api_idx].get("name", "").upper()
+            return "WDM-KS" in api_name or "WASAPI" in api_name  # WASAPI às vezes também falha com blocos pequenos
+        return False
+
+    # 2. Corrigir Input se for inválido (-1) ou se apontar para WDM-KS/WASAPI por padrão
+    if input_id is None:
+        needs_fallback = (default_input == -1)
+        if default_input >= 0 and default_input < len(devices):
+            needs_fallback = is_problematic_api(devices[default_input])
+            
+        if needs_fallback:
+            # Primeiro tenta MME ou DirectSound
+            for idx, dev in enumerate(devices):
+                if dev.get("max_input_channels", 0) > 0 and not is_problematic_api(dev):
+                    input_id = idx
+                    break
+            # Se não achou nenhum fora de WDM-KS/WASAPI, pega qualquer um disponível > 0
+            if input_id is None:
+                for idx, dev in enumerate(devices):
+                    if dev.get("max_input_channels", 0) > 0:
+                        input_id = idx
+                        break
+        else:
+            input_id = default_input
+
+    # 3. Corrigir Output se for inválido (-1) ou apontar para API incompatível
+    if output_id is None:
+        needs_fallback = (default_output == -1)
+        if default_output >= 0 and default_output < len(devices):
+            needs_fallback = is_problematic_api(devices[default_output])
+
+        if needs_fallback:
+            # Primeiro tenta MME ou DirectSound
+            for idx, dev in enumerate(devices):
+                if dev.get("max_output_channels", 0) > 0 and not is_problematic_api(dev):
+                    output_id = idx
+                    break
+            # Se não achou, pega qualquer um
+            if output_id is None:
+                for idx, dev in enumerate(devices):
+                    if dev.get("max_output_channels", 0) > 0:
+                        output_id = idx
+                        break
+        else:
+            output_id = default_output
+
+    if input_id is not None or output_id is not None:
+        final_input = input_id if input_id is not None else default_input
+        final_output = output_id if output_id is not None else default_output
+        sd.default.device = (final_input, final_output)
+        
+        input_name = devices[final_input]["name"] if (final_input >= 0 and final_input < len(devices)) else "Nenhum"
+        output_name = devices[final_output]["name"] if (final_output >= 0 and final_output < len(devices)) else "Nenhum"
+        
+        log.info(
+            "🎤 Áudio configurado: Entrada ID %s (%s) | Saída ID %s (%s)",
+            final_input,
+            input_name,
+            final_output,
+            output_name
+        )
+
+setup_audio_devices()
+
+
+
+# ---------------------------------------------------------------------------
 # Estado global do tray icon
 # ---------------------------------------------------------------------------
 _tray_icon_ref: object = None  # pystray.Icon
@@ -786,8 +877,23 @@ def _wake_word_loop() -> None:
         return
 
     chunk_samples = int(SAMPLE_RATE * WAKE_WORD_CHUNK_MS / 1000)
-    last_triggered = 0.0
+    
+    state = {
+        "last_triggered": 0.0
+    }
     WAKE_COOLDOWN_S = 3.0
+
+    def wake_callback(indata, frames, time_info, status):
+        if status:
+            log.debug("Wake status: %s", status)
+        pcm = indata.flatten()
+        prediction = oww.predict(pcm)
+        score = max(prediction.get(WAKE_WORD_MODEL, {0: 0.0}).values(), default=0.0)
+        now = time.monotonic()
+        if score >= WAKE_WORD_THRESHOLD and (now - state["last_triggered"]) > WAKE_COOLDOWN_S:
+            state["last_triggered"] = now
+            log.info("🎙️  Wake word detectado (score=%.2f) → agente de voz", score)
+            threading.Thread(target=run_voice_agent, daemon=True).start()
 
     try:
         with sd.InputStream(
@@ -795,19 +901,14 @@ def _wake_word_loop() -> None:
             channels=1,
             dtype="int16",
             blocksize=chunk_samples,
-        ) as stream:
+            callback=wake_callback
+        ):
             while True:
-                data, _ = stream.read(chunk_samples)
-                pcm = data.flatten().tolist()
-                prediction = oww.predict(np.array(pcm, dtype=np.int16))
-                score = max(prediction.get(WAKE_WORD_MODEL, {0: 0.0}).values(), default=0.0)
-                now = time.monotonic()
-                if score >= WAKE_WORD_THRESHOLD and (now - last_triggered) > WAKE_COOLDOWN_S:
-                    last_triggered = now
-                    log.info("🎙️  Wake word detectado (score=%.2f) → agente de voz", score)
-                    threading.Thread(target=run_voice_agent, daemon=True).start()
+                time.sleep(1.0)
     except Exception as e:
         log.warning("Wake word loop encerrou: %s", e)
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -1249,71 +1350,68 @@ def main() -> int:
     log.info("🌤️  Ferramentas: search_web | get_weather | set_reminder")
     if WAKE_WORD_ENABLED:
         log.info("🔊 Wake word '%s' ativo em thread separada.", WAKE_WORD_MODEL)
-    if TRAY_ICON_ENABLED:
-        log.info("🟢 Tray icon ativo na bandeja do sistema.")
+    state = {
+        "noise_floor": noise_floor,
+        "last_clap_event": last_clap_event,
+        "clap_times": clap_times,
+        "spike_armed": spike_armed,
+        "welcome_done": welcome_done
+    }
+
+    def clap_callback(indata, frames, time_info, status):
+        if status:
+            log.warning("Audio status: %s", status)
+        level = rms_mono(indata)
+        now = time.monotonic()
+
+        if level < state["noise_floor"] * QUIET_GATE_MULT:
+            state["noise_floor"] = (
+                NOISE_FLOOR_ALPHA * state["noise_floor"]
+                + (1.0 - NOISE_FLOOR_ALPHA) * level
+            )
+            state["noise_floor"] = max(state["noise_floor"], 1e-7)
+
+        threshold = max(state["noise_floor"] * SPIKE_RATIO, MIN_RMS)
+        retrigger = threshold * RETRIGGER_RATIO
+
+        if level < retrigger:
+            state["spike_armed"] = True
+
+        if state["spike_armed"] and level >= threshold and (now - state["last_clap_event"]) >= COOLDOWN_S:
+            state["spike_armed"] = False
+            state["clap_times"].append(now)
+            state["clap_times"] = [t for t in state["clap_times"] if now - t <= TRIPLE_CLAP_WINDOW_S]
+
+            # ── Detecção de palma TRIPLA ──
+            if len(state["clap_times"]) >= 3:
+                span = state["clap_times"][-1] - state["clap_times"][-3]
+                if span <= TRIPLE_CLAP_WINDOW_S:
+                    state["last_clap_event"] = now
+                    state["clap_times"].clear()
+                    log.info("🤚🤚🤚 Palma tripla (span=%.3fs) → agente de voz", span)
+                    threading.Thread(target=run_voice_agent, daemon=True).start()
+                    return
+
+            # ── Detecção de palma DUPLA ──
+            if len(state["clap_times"]) >= 2:
+                gap = state["clap_times"][-1] - state["clap_times"][-2]
+                if MIN_DOUBLE_GAP_S <= gap <= MAX_DOUBLE_GAP_S:
+                    state["last_clap_event"] = now
+                    if not state["welcome_done"]:
+                        state["welcome_done"] = True
+                        log.info("👏👏 Palma dupla (gap=%.3fs, rms=%.5f) → boot sequence", gap, level)
+                        threading.Thread(target=run_double_clap_actions, daemon=True).start()
+                    else:
+                        log.info("👏👏 Palma dupla (gap=%.3fs) — boot já executado nesta sessão.", gap)
 
     try:
         with sd.InputStream(
             samplerate=SAMPLE_RATE, channels=CHANNELS,
             dtype="float32", blocksize=blocksize,
-        ) as stream:
+            callback=clap_callback
+        ):
             while True:
-                data, overflowed = stream.read(blocksize)
-                if overflowed:
-                    log.warning("Input overflow; aumente BLOCK_MS.")
-
-                level = rms_mono(data)
-                now = time.monotonic()
-
-                if level < noise_floor * QUIET_GATE_MULT:
-                    noise_floor = (
-                        NOISE_FLOOR_ALPHA * noise_floor
-                        + (1.0 - NOISE_FLOOR_ALPHA) * level
-                    )
-                    noise_floor = max(noise_floor, 1e-7)
-
-                threshold = max(noise_floor * SPIKE_RATIO, MIN_RMS)
-                retrigger = threshold * RETRIGGER_RATIO
-
-                if level < retrigger:
-                    spike_armed = True
-
-                if spike_armed and level >= threshold and (now - last_clap_event) >= COOLDOWN_S:
-                    spike_armed = False
-                    clap_times.append(now)
-                    # Remove palmas antigas fora da janela de detecção
-                    clap_times = [t for t in clap_times if now - t <= TRIPLE_CLAP_WINDOW_S]
-
-                    # ── Detecção de palma TRIPLA (3 palmas dentro da janela) ──
-                    if len(clap_times) >= 3:
-                        span = clap_times[-1] - clap_times[-3]
-                        if span <= TRIPLE_CLAP_WINDOW_S:
-                            last_clap_event = now
-                            clap_times.clear()
-                            log.info("🤚🤚🤚 Palma tripla (span=%.3fs) → agente de voz", span)
-                            threading.Thread(target=run_voice_agent, daemon=True).start()
-                            continue
-
-                    # ── Detecção de palma DUPLA ──
-                    if len(clap_times) >= 2:
-                        gap = clap_times[-1] - clap_times[-2]
-                        if MIN_DOUBLE_GAP_S <= gap <= MAX_DOUBLE_GAP_S:
-                            last_clap_event = now
-                            if not welcome_done:
-                                welcome_done = True
-                                log.info(
-                                    "👏👏 Palma dupla (gap=%.3fs, rms=%.5f) → boot sequence",
-                                    gap, level,
-                                )
-                                threading.Thread(
-                                    target=run_double_clap_actions, daemon=True
-                                ).start()
-                            else:
-                                log.info(
-                                    "👏👏 Palma dupla (gap=%.3fs) — boot já executado nesta sessão.",
-                                    gap,
-                                )
-
+                time.sleep(1.0)
     except KeyboardInterrupt:
         log.info("Stopped.")
         return 0
@@ -1322,6 +1420,8 @@ def main() -> int:
         return 1
 
     return 0
+
+
 
 
 if __name__ == "__main__":

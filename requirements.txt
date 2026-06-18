@@ -1,21 +1,21 @@
-numpy>=1.24,<3
-sounddevice>=0.4.6,<0.6
-elevenlabs>=1.50,<3
-websockets>=13
+numpy>=2.0.0
+sounddevice>=0.5.0
+elevenlabs>=2.50.0
+websockets>=14.0
 python-dotenv>=1.0,<2
 
 # DeepSeek LLM (API compatível com OpenAI)
-openai>=1.0,<2
+openai>=2.0.0
 
 # STT offline — transcrição de voz local, sem API key
-faster-whisper>=1.0,<2
+faster-whisper>=1.2.0
 
-# Busca na web (DuckDuckGo, sem API key) — novo nome do pacote
-ddgs>=1.0
+# Busca na web (DuckDuckGo, sem API key)
+ddgs>=9.14.0
 
 # Tray icon na bandeja do sistema
 pystray>=0.19
 Pillow>=10.0
 
 # Wake word offline "hey jarvis" (opcional — baixa modelo ONNX na 1ª execução)
-openwakeword>=0.6
+openwakeword>=0.6.0
