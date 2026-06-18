@@ -1,2 +1,93 @@
+# ── Variáveis de ambiente (segredos) ────────────────────────────────────────
 .env
+*.env
+!.env.example
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.so
+
+# Distribuição / empacotamento
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+MANIFEST
+
+# Instalação local
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Ambientes virtuais
+venv/
+.venv/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
+# ── Ferramentas de qualidade de código ──────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pylint.d/
+.pytype/
+
+# ── Testes ───────────────────────────────────────────────────────────────────
+.pytest_cache/
+.tox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+nosetests.xml
+
+# ── Jupyter / IPython ────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Modelos de ML (Whisper, OpenWakeWord etc.) ───────────────────────────────
+*.onnx
+*.tflite
+*.pt
+*.pth
+*.bin
+*.gguf
+models/
+
+# ── Cache de áudio / dados temporários ──────────────────────────────────────
 .cache/
+*.wav
+*.mp3
+*.pcm
+*.ogg
+*.raw
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Editores e IDEs ──────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.kate-swp
+.DS_Store
+Thumbs.db
+
+# ── OpenCode (chats locais) ──────────────────────────────────────────────────
+.opencode_chats/
+
+# ── Antigravity IDE ──────────────────────────────────────────────────────────
+.antigravity/
